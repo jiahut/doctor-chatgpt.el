@@ -12,5 +12,10 @@
     :prefix "SPC"
     :keymaps 'normal
     "oc"    'doctor-chatgpt
+  )
+  (general-define-key
+   :prefix "SPC"
+    :keymaps 'visual
+   "oc" 'doctor-chatgpt-send-selected-text
   ))
 ```
