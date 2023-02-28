@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'markdown-mode)
+(require 'evil)
 
 (defvar doctor-chatgpt-buffer-name "*doctor-chatgpt*")
 (defvar doctor-chatgpt-process-buffer-name "*doctor-chatgpt-process*")
@@ -20,32 +21,33 @@
 
 (defun doctor-chatgpt-filter (process output)
   "Filter for chatgpt process."
-  (message "doctor-chatgpt-filter: %s" output)
-  (let ((buffer (process-buffer process)))
-    (cond
-     ((string-match "输入你的问题):" output)
-      (setq doctor-chatgpt-ready t))
-     ((not doctor-chatgpt-ready))
-     ((equal output "输入你的问题):")
-      (setq doctor-chatgpt-replying t)
-      (with-current-buffer doctor-chatgpt-buffer-name (read-only-mode 1)))
-     (t
-      (when-let* ((el (string-match "输入你的问题):$" output)))
-        (setq doctor-chatgpt-replying nil)
-        (setq output (substring output 0 el)))
-      (when (> (length output) 1) (push output doctor-chatgpt-recv-list))
-      (with-current-buffer doctor-chatgpt-buffer-name
-        (read-only-mode -1)
-        (goto-char (point-max))
-        ;; HACK: don't know why it will repeat the first send, so remove it
-        (insert
-         (if (eq (length doctor-chatgpt-recv-list) 1)
-             (string-replace (string-trim (nth 0 doctor-chatgpt-send-list)) "" output)
-           output))
-        (if doctor-chatgpt-replying
-            (read-only-mode 1)
-          ;; (if doctor-chatgpt-recv-list (insert "\n"))
-          ))))))
+  ;; (message "doctor-chatgpt-filter: %s" output)
+  (cond
+   ((string-match "输入你的问题):" output)
+    (setq doctor-chatgpt-ready t))
+   ((not doctor-chatgpt-ready))
+   ((equal output "输入你的问题):")
+    (setq doctor-chatgpt-replying t)
+    ;; (with-current-buffer doctor-chatgpt-buffer-name (read-only-mode 1))
+    )
+   (t
+    (when-let* ((el (string-match "输入你的问题):$" output)))
+      (setq doctor-chatgpt-replying nil)
+      (setq output (substring output 0 el)))
+    (when (> (length output) 1) (push output doctor-chatgpt-recv-list))
+    (with-current-buffer doctor-chatgpt-buffer-name
+      ;; (read-only-mode -1)
+      (goto-char (point-max))
+      ;; HACK: don't know why it will repeat the first send, so remove it
+      (insert
+       (if (eq (length doctor-chatgpt-recv-list) 1)
+           (string-replace (string-trim (nth 0 doctor-chatgpt-send-list)) "" output)
+         output))
+      ;; (if doctor-chatgpt-replying
+      ;;     (read-only-mode 1)
+      ;;   ;; (if doctor-chatgpt-recv-list (insert "\n"))
+      ;;   )
+      ))))
 
 (defun doctor-chatgpt-start-process ()
   "Start a chat with ChatGPT."
@@ -97,7 +99,7 @@ ARG will be passed to `newline'."
 
 (defvar-keymap doctor-chatgpt-mode-map
   "C-j" #'doctor-chatgpt-read-print
-  "RET" #'doctor-chatgpt-ret-or-read)
+  "C-<return>" #'doctor-chatgpt-ret-or-read)
 
 (define-derived-mode doctor-chatgpt-mode gfm-mode "Doctor ChatGPT"
   "Major mode for running the ChatGPT.
@@ -120,6 +122,18 @@ reads the sentence before point, and prints the ChatGPT's answer."
   (doctor-chatgpt-start-process)
   (switch-to-buffer doctor-chatgpt-buffer-name)
   (doctor-chatgpt-mode))
+
+(defun doctor-chatgpt-send-selected-text ()
+  "Get selected text and send to chatgpt."
+  (interactive)
+  (let ((selected-text (buffer-substring-no-properties (region-beginning) (region-end))))
+    (message selected-text)
+    (evil-normal-state 1)
+    (push selected-text doctor-chatgpt-send-list)
+    (setq doctor-chatgpt-replying t)
+    (message "ask chatgpt: %s" (concat selected-text "\n"))
+    (switch-to-buffer doctor-chatgpt-buffer-name)
+    (process-send-string doctor-chatgpt-process (concat selected-text "\n"))))
 
 (provide 'doctor-chatgpt)
 
